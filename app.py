@@ -11,13 +11,13 @@ st.title("Dashboard de Repitencia Estudiantil")
 @st.cache_data
 def load_data():
     data = []
-    x_labels = ['Contabilidad', 'Ingeniería\nIndustrial', 'Derecho', 'Economía\nPública', 'Educación\nFísica']
+    x_labels = ['Contabilidad', 'Ingeniería\nIndustrial', 'Ingeniería\nMecánica\nde Fluidos', 'Gestión\nTributaria', 'Derecho']
     valores = [
-        [432, 132, 18, 2],
-        [333, 61, 35, 0],
-        [273, 93, 31, 1],
-        [303, 48, 6, 2],
-        [216, 107, 26, 1]
+        [504, 146, 25, 7],
+        [286, 97, 15, 3],
+        [209, 125, 32, 9],
+        [256, 89, 21, 7],
+        [267, 74, 24, 1]
     ]
 
     for fac, vals in zip(x_labels, valores):
@@ -128,3 +128,4 @@ if show_table:
     st.subheader("Datos Filtrados y Ordenados")
     # Mostramos el dataframe filtrado
     st.dataframe(dff)
+
