@@ -1,70 +1,130 @@
 import streamlit as st
-import matplotlib.pyplot as plt
-import numpy as np
+import plotly.express as px
+import pandas as pd
 
-# Título del Dashboard
+# --- Configuración de la Página de Streamlit ---
+st.set_page_config(layout="wide")
 st.title("Dashboard de Repitencia Estudiantil")
-st.write("Visualización de datos por facultad y nivel de repitencia.")
 
-# --- TU CÓDIGO DE MATPLOTLIB ADAPTADO ---
+# --- 1. Preparar los Datos (Tu código original) ---
+# Usamos @st.cache_data para que los datos no se recarguen
+@st.cache_data
+def load_data():
+    data = []
+    x_labels = ['Contabilidad', 'Ingeniería\nIndustrial', 'Derecho', 'Economía\nPública', 'Educación\nFísica']
+    valores = [
+        [432, 132, 18, 2],
+        [333, 61, 35, 0],
+        [273, 93, 31, 1],
+        [303, 48, 6, 2],
+        [216, 107, 26, 1]
+    ]
 
-# Etiquetas personalizadas del eje X
-x_labels = ['Contabilidad', 'Ingeniería\nIndustrial', 'Ingeniería\nMecánica\nde Fluidos', 'Gestión\nTributaria', 'Derecho']
-x = np.arange(len(x_labels))  # Posiciones de cada grupo
+    for fac, vals in zip(x_labels, valores):
+        for i, v in enumerate(vals):
+            # Añadimos un filtro para no incluir datos con 0 estudiantes
+            if v > 0: 
+                data.append({'Escuela': fac, 'Repitencia': f'{i+1}°', 'Estudiantes': v})
+    
+    df = pd.DataFrame(data)
+    return df
 
-# Datos manuales por facultad
-datos = [
-    [504, 146, 25, 7],
-    [286, 97, 15, 3],
-    [209, 125, 32, 9],
-    [256, 89, 21, 7],
-    [267, 74, 24, 1]
+df = load_data()
+all_schools = df['Escuela'].unique()
+all_repitencias = sorted(df['Repitencia'].unique())
+
+# --- 2. Crear los Widgets de Filtro en la Barra Lateral ---
+st.sidebar.header("Filtros del Dashboard")
+
+# Filtro 1: Selección de Escuelas
+selected_schools = st.sidebar.multiselect(
+    'Seleccione las escuelas:',
+    options=all_schools,
+    default=all_schools
+)
+
+# Filtro 2: Selección de Nivel de Repitencia
+selected_repitencias = st.sidebar.multiselect(
+    'Seleccione nivel de repitencia:',
+    options=all_repitencias,
+    default=all_repitencias
+)
+
+# Filtro 3: Ordenar el gráfico
+sort_order = st.sidebar.radio(
+    'Ordenar por total de estudiantes:',
+    options=['Descendente', 'Ascendente'],
+    index=0 # Por defecto, Descendente
+)
+
+# Filtro 4: Mostrar/Ocultar Tabla
+show_table = st.sidebar.checkbox('Mostrar tabla de datos', value=False)
+
+
+# --- 3. Filtrar los Datos ---
+# Filtramos el DataFrame basado en las selecciones
+dff = df[
+    df['Escuela'].isin(selected_schools) &
+    df['Repitencia'].isin(selected_repitencias)
 ]
 
-# Colores: azul, naranja, verde, rojo
-colores = ['blue', 'orange', 'green', 'red']
-n_grupos = len(colores)
-bar_width = 0.2 
+# --- 4. Mostrar KPIs (Métricas Clave) ---
+st.subheader("Métricas Totales (Según Filtro)")
 
-# 1. Crear la figura explícitamente para Streamlit
-fig = plt.figure(figsize=(11, 5))
+total_estudiantes = dff['Estudiantes'].sum()
+num_escuelas = len(dff['Escuela'].unique())
 
-for i in range(n_grupos):
-    valores = [fila[i] for fila in datos]
-    totales = [sum(fila) for fila in datos]
-    # Evitar división por cero si totales es 0 (seguridad)
-    porcentajes = [(v / t * 100) if t > 0 else 0 for v, t in zip(valores, totales)]
+col1, col2 = st.columns(2)
+col1.metric("Escuelas Seleccionadas", f"{num_escuelas}")
+col2.metric("Total Estudiantes (con repitencia)", f"{total_estudiantes:,}")
 
-    posiciones = x + (i - (n_grupos - 1) / 2) * bar_width 
-    barras = plt.bar(posiciones, valores, width=bar_width, color=colores[i])
+st.markdown("---") # Línea divisoria
 
-    # Añadir texto del porcentaje
-    for xi, yi, pct in zip(posiciones, valores, porcentajes):
-        plt.text(xi + 0.01, yi + 6, f'{pct:.1f}%', ha='center', va='bottom', fontsize=9, color=colores[i])
+# --- 5. Preparar y Mostrar el Gráfico ---
+st.subheader("Gráfico Comparativo de Repitencias")
 
-# Personalización
-plt.xticks(x, x_labels, rotation=0, ha='center')
-plt.xlabel('Escuela Profesional', fontsize=14)
-plt.ylabel('Estudiantes', fontsize=14)
-plt.legend([f'{i+1}° Repitencia' for i in range(n_grupos)],
-           loc='upper center', bbox_to_anchor=(0.5, 1.15), ncol=4, frameon=False)
-plt.grid(axis='y', linestyle='--', alpha=0.4)
+# Si no hay datos, muestra un mensaje
+if dff.empty:
+    st.warning("No hay datos para mostrar con los filtros seleccionados.")
+else:
+    # Lógica para ordenar el eje X del gráfico
+    # 1. Agrupamos por escuela y sumamos los estudiantes
+    df_agg = dff.groupby('Escuela')['Estudiantes'].sum().reset_index()
+    
+    # 2. Ordenamos
+    sort_asc = (sort_order == 'Ascendente')
+    df_agg = df_agg.sort_values(by='Estudiantes', ascending=sort_asc)
+    
+    # 3. Creamos una lista con el orden de las escuelas
+    sorted_schools_list = df_agg['Escuela'].tolist()
 
-# Quitar bordes
-ax = plt.gca()
-ax.spines['top'].set_visible(False)
-ax.spines['right'].set_visible(False)
-plt.tight_layout()
-
-# 2. EN LUGAR DE plt.show(), USAMOS ESTO PARA STREAMLIT:
-st.pyplot(fig)
-
-# Opcional: Botón para descargar el PDF que generaba tu código
-fig.savefig("1_Top5.pdf", bbox_inches='tight')
-with open("1_Top5.pdf", "rb") as pdf_file:
-    st.download_button(
-        label="Descargar gráfico en PDF",
-        data=pdf_file,
-        file_name="grafico_repitencia.pdf",
-        mime="application/pdf"
+    # 4. Creamos el gráfico con Plotly Express (tu código)
+    fig = px.bar(
+        dff, 
+        x='Escuela', 
+        y='Estudiantes', 
+        color='Repitencia', 
+        barmode='group',
+        title='Estudiantes por Repitencia y Escuela Profesional',
+        text='Estudiantes' # Añade el valor sobre la barra
     )
+
+    # 5. Aplicamos el orden al eje X
+    fig.update_layout(
+        xaxis_title='Escuela Profesional', 
+        yaxis_title='Estudiantes',
+        height=600,
+        # Aquí le decimos a Plotly el orden exacto del eje X
+        xaxis={'categoryorder':'array', 'categoryarray': sorted_schools_list} 
+    )
+    fig.update_traces(textposition='outside') # Pone el texto fuera de la barra
+
+    # 6. Mostrar el Gráfico
+    st.plotly_chart(fig, use_container_width=True)
+
+# --- 6. Mostrar la Tabla de Datos (si está activado) ---
+if show_table:
+    st.markdown("---")
+    st.subheader("Datos Filtrados y Ordenados")
+    # Mostramos el dataframe filtrado
+    st.dataframe(dff)
